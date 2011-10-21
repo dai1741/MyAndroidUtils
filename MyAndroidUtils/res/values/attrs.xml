@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+     <declare-styleable name="SimpleDialogPreference">
+        <attr name="onPositive" format="string" />
+        <attr name="onNegative" format="string" />
+        <attr name="onCancel" format="string" />
+    </declare-styleable>
+</resources>

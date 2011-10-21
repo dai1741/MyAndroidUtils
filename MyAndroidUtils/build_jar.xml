@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="make_jar" default="jar" basedir=".">
+	<target name="jar">
+		<jar jarfile="dai1741_android_utils.jar">
+			<fileset dir="./bin" includes="**/*.class" />
+			<fileset dir="./src" includes="**/*.java" />
+		</jar>
+	</target>
+</project>
