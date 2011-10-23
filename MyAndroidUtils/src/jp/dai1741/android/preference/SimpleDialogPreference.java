@@ -76,6 +76,7 @@ public class SimpleDialogPreference extends DialogPreference {
      *            which has the method to be invoked
      * @param methodName
      *            may be null
+     * @throws RuntimeException
      */
     protected void invoke(Context context, String methodName) {
         if (methodName == null) {
@@ -87,16 +88,18 @@ public class SimpleDialogPreference extends DialogPreference {
             m.invoke(context, this);
         }
         catch (SecurityException e) {
-            throw new AssertionError(e);
+            throw new RuntimeException(e);
         }
         catch (NoSuchMethodException e) {
-            throw new RuntimeException("no such method:" + methodName);
+            throw new IllegalStateException("no such public method:" + methodName, e);
         }
         catch (IllegalArgumentException e) {
-            throw new AssertionError(e);
+            throw new IllegalStateException("method signature must be: 'public void "
+                    + methodName + "(SimpleDialogPreference preference)'", e);
         }
         catch (IllegalAccessException e) {
-            throw new RuntimeException("no permission to invoke method:" + methodName);
+            throw new IllegalStateException("no permission to invoke method:"
+                    + methodName, e);
         }
         catch (InvocationTargetException e) {
             throw new RuntimeException(e.getCause());
