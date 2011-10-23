@@ -37,7 +37,7 @@ public class SimpleDialogPreference extends DialogPreference {
         // R.styleable.SimpleDialogPreference);
 
         // ライブラリプロジェクトでは、aaptのバグにより
-        // TypedArrayを使う方法での固有属性取得は不可能(android sdkのバージョンは12)
+        // TypedArrayを使う方法での固有属性取得は不可能(android sdkのバージョンは14)
         // @see http://code.google.com/p/android/issues/detail?id=9656
 
         // なのでAttributeSetを直接扱う。
