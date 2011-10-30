@@ -251,29 +251,38 @@ public final class FileIterator implements Iterator<File> {
     public static enum FileComparators implements Comparator<File> {
         NATURAL {
             public int compare(File file1, File file2) {
-                return file1.compareTo(file2);
+                int ret = compareSimple(file1, file2);
+                return ret != AMBIGUOUS ? ret : file1.compareTo(file2);
             }
         },
         FILENAME {
             public int compare(File file1, File file2) {
-                return file1.getName().compareTo(file2.getName());
+                int ret = compareSimple(file1, file2);
+                return ret != AMBIGUOUS ? ret : file1.getName()
+                        .compareTo(file2.getName());
             }
         },
         FILETYPE {
             public int compare(File file1, File file2) {
-                return getExtension(file1).compareTo(getExtension(file2));
+                int ret = compareSimple(file1, file2);
+                return ret != AMBIGUOUS ? ret : getExtension(file1).compareTo(
+                        getExtension(file2));
             }
         },
         FILESIZE {
             public int compare(File file1, File file2) {
-                long ret = file1.length() - file2.length();
-                return ret > 0 ? 1 : ret < 0 ? -1 : 0;
+                int ret = compareSimple(file1, file2);
+                if(ret != AMBIGUOUS) return ret;
+                long retl = file1.length() - file2.length();
+                return retl > 0 ? 1 : retl < 0 ? -1 : 0;
             }
         },
         DATE {
             public int compare(File file1, File file2) {
-                long ret = file1.lastModified() - file2.lastModified();
-                return ret > 0 ? 1 : ret < 0 ? -1 : 0;
+                int ret = compareSimple(file1, file2);
+                if(ret != AMBIGUOUS) return ret;
+                long retl = file1.lastModified() - file2.lastModified();
+                return retl > 0 ? 1 : retl < 0 ? -1 : 0;
             }
         };
 
@@ -283,6 +292,15 @@ public final class FileIterator implements Iterator<File> {
         private static String getExtension(File file) {
             Matcher m = EXTENSION_PATTERN.matcher(file.getName());
             return m.find() ? m.group() : "";
+        }
+
+        private static final int AMBIGUOUS = 8;
+
+        private static int compareSimple(Object a, Object b) {
+            if (a == b) return 0;
+            if (a == null) return -1;
+            if (b == null) return 1;
+            return AMBIGUOUS;
         }
     }
 

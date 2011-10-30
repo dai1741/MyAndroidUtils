@@ -91,9 +91,9 @@ public class AliasColumnCursor extends CursorWrapper {
 		return alias == null ? orig : alias;
 	}
 	
-	private String resolveInverseAlias(String orig) {
-		String alias = mInverseAliasMap.get(orig);
-		return alias == null ? orig : alias;
+	private String resolveInverseAlias(String alias) {
+		String orig = mInverseAliasMap.get(alias);
+		return orig == null ? alias : orig;
 	}
 	
 
