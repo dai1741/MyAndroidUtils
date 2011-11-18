@@ -39,6 +39,11 @@ public class SimpleSQLiteOpenHelper extends SQLiteOpenHelper {
                 newVersion);
     }
     
+    public void setOnCreateListener(OnCreateListener listener) {
+        mOnCreateListener = listener;
+    }
+    
+    @Deprecated
     public void setOnCreateListenre(OnCreateListener listener) {
         mOnCreateListener = listener;
     }
