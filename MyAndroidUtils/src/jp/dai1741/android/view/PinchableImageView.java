@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.FloatMath;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -15,8 +16,6 @@ import android.view.View;
 /**
  * ドラッグで画像を動かしたり、つまんで拡大縮小ができるビュー。
  * クラス名とは裏腹にandroid.widget.ImageViewを継承していない。
- * 
- * TODO: 色々動作がおかしいので要修正。
  * 
  * @author dai
  * 
@@ -92,29 +91,6 @@ public class PinchableImageView extends View {
     }
 
     private void initView() {
-        fitView();
-    }
-
-    public void fitImageTo(ZoomState state) {
-        mZoom = state.calculateZoomRate(this, mBitMap);
-
-        makeImageInDisplay();
-        invalidate();
-    }
-
-    private void makeImageInDisplay() {
-        if (mLazyShowngAroundRect != null) {
-            showAround(mLazyShowngAroundRect);
-            mLazyShowngAroundRect = null;
-        }
-        else {
-            fixOrverRun(1);
-        }
-
-    }
-
-    private void fitView() {
-
         mZoomCenterX = (float) getWidth() / 2;
         mZoomCenterY = (float) getHeight() / 2;
 
@@ -127,16 +103,30 @@ public class PinchableImageView extends View {
         invalidate();
     }
 
+    public void fitImageTo(ZoomState state) {
+        mZoom = state.calculateZoomRate(this, mBitMap);
+
+        makeImageInDisplay();
+        invalidate();
+    }
+
+    private void makeImageInDisplay() {
+        // 表示位置の指定があればそれを優先
+        if (mLazyShowngAroundRect != null) {
+            showAround(mLazyShowngAroundRect);
+            mLazyShowngAroundRect = null;
+        }
+        else {
+            fixOrverRun(1);
+        }
+
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         canvas.scale(mZoom, mZoom, mZoomCenterX, mZoomCenterY);
         canvas.translate(mMapX, mMapY);
         canvas.drawBitmap(mBitMap, 0, 0, mPaint);
-
-        // if (mOverlays != null)
-        // for (OverlayRect obj : mOverlays) {
-        // obj.draw(canvas, mPaint);
-        // }
 
         if (!mOnTouching) {
             if (fixOrverRun(HAMIDASHI_HOSEI)) {
@@ -160,25 +150,21 @@ public class PinchableImageView extends View {
         RectF bounds = getBounds();
         float hosei = 1; // これがないと拡大率によってはプルプルするよ！
 
-        if ((bounds.left < -hosei)
-                ^ (mBitMap.getWidth() < bounds.right - hosei)) {
+        if ((bounds.left < -hosei) ^ (mBitMap.getWidth() < bounds.right - hosei)) {
             if (bounds.left < -hosei) {
-                mMapX += Math.floor(bounds.left / damp);
+                mMapX += FloatMath.floor(bounds.left / damp);
             }
             else {
-                mMapX += Math.ceil((bounds.right - mBitMap.getWidth())
-                        / damp);
+                mMapX += FloatMath.ceil((bounds.right - mBitMap.getWidth()) / damp);
             }
             modded = true;
         }
-        if ((bounds.top < -hosei)
-                ^ (mBitMap.getHeight() < bounds.bottom - hosei)) {
+        if ((bounds.top < -hosei) ^ (mBitMap.getHeight() < bounds.bottom - hosei)) {
             if (bounds.top < -hosei) {
-                mMapY += Math.floor(bounds.top / damp);
+                mMapY += FloatMath.floor(bounds.top / damp);
             }
             else {
-                mMapY += Math.ceil((bounds.bottom - mBitMap.getHeight())
-                        / damp);
+                mMapY += FloatMath.ceil((bounds.bottom - mBitMap.getHeight()) / damp);
             }
             modded = true;
         }
@@ -262,8 +248,7 @@ public class PinchableImageView extends View {
                 }
                 else {
                     // assert both 0 and 1 are available for pointerIndex
-                    float dist = (float) Math.hypot(x - event.getX(1),
-                            y - event.getY(1));
+                    float dist = (float) Math.hypot(x - event.getX(1), y - event.getY(1));
                     mZoom = mPinchStartZoom
                             * (float) ((dist / mPinchStartDistance));
                     // zoomcenterは固定値に
