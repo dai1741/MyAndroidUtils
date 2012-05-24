@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.FloatMath;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -15,8 +16,6 @@ import android.view.View;
 /**
  * ドラッグで画像を動かしたり、つまんで拡大縮小ができるビュー。
  * クラス名とは裏腹にandroid.widget.ImageViewを継承していない。
- * 
- * TODO: 色々動作がおかしいので要修正。
  * 
  * @author dai
  * 
@@ -31,6 +30,7 @@ public class PinchableImageView extends View {
     protected Paint mPaint = new Paint();
     protected int mAlphaChangeRate = 255;
     protected ZoomState mZoomState;
+    protected GestureDetector mGestureDetector;
 
     public PinchableImageView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
@@ -67,6 +67,7 @@ public class PinchableImageView extends View {
     private void init(Bitmap bitmap, ZoomState initZoom) {
 
         mZoomState = initZoom;
+        mGestureDetector = new GestureDetector(getContext(), new GestureListener());
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -90,7 +91,16 @@ public class PinchableImageView extends View {
     }
 
     private void initView() {
-        fitView();
+        mZoomCenterX = (float) getWidth() / 2;
+        mZoomCenterY = (float) getHeight() / 2;
+
+        fitImageTo(mZoomState);
+
+        RectF bounds = getBounds();
+        mMapX += bounds.left;
+        mMapY += bounds.top;
+
+        invalidate();
     }
 
     public void fitImageTo(ZoomState state) {
@@ -101,25 +111,15 @@ public class PinchableImageView extends View {
     }
 
     private void makeImageInDisplay() {
-        RectF bounds = getBounds();
-        mMapX += bounds.left;
-        mMapY += bounds.top;
-
+        // 表示位置の指定があればそれを優先
         if (mLazyShowngAroundRect != null) {
             showAround(mLazyShowngAroundRect);
             mLazyShowngAroundRect = null;
         }
+        else {
+            fixOrverRun(1);
+        }
 
-    }
-
-    private void fitView() {
-
-        mZoomCenterX = (float) getWidth() / 2;
-        mZoomCenterY = (float) getHeight() / 2;
-
-        fitImageTo(mZoomState);
-
-        invalidate();
     }
 
     @Override
@@ -128,13 +128,8 @@ public class PinchableImageView extends View {
         canvas.translate(mMapX, mMapY);
         canvas.drawBitmap(mBitMap, 0, 0, mPaint);
 
-        // if (mOverlays != null)
-        // for (OverlayRect obj : mOverlays) {
-        // obj.draw(canvas, mPaint);
-        // }
-
         if (!mOnTouching) {
-            if (fixOrverRun()) {
+            if (fixOrverRun(HAMIDASHI_HOSEI)) {
                 invalidate();
             }
             int alpha = mPaint.getAlpha();
@@ -150,30 +145,26 @@ public class PinchableImageView extends View {
      * 
      * @return whether or not the clipped region is modified
      */
-    private boolean fixOrverRun() {
+    private boolean fixOrverRun(float damp) {
         boolean modded = false;
         RectF bounds = getBounds();
         float hosei = 1; // これがないと拡大率によってはプルプルするよ！
 
-        if ((bounds.left < -hosei)
-                ^ (mBitMap.getWidth() < bounds.right - hosei)) {
+        if ((bounds.left < -hosei) ^ (mBitMap.getWidth() < bounds.right - hosei)) {
             if (bounds.left < -hosei) {
-                mMapX += Math.floor(bounds.left / HAMIDASHI_HOSEI);
+                mMapX += FloatMath.floor(bounds.left / damp);
             }
             else {
-                mMapX += Math.ceil((bounds.right - mBitMap.getWidth())
-                        / HAMIDASHI_HOSEI);
+                mMapX += FloatMath.ceil((bounds.right - mBitMap.getWidth()) / damp);
             }
             modded = true;
         }
-        if ((bounds.top < -hosei)
-                ^ (mBitMap.getHeight() < bounds.bottom - hosei)) {
+        if ((bounds.top < -hosei) ^ (mBitMap.getHeight() < bounds.bottom - hosei)) {
             if (bounds.top < -hosei) {
-                mMapY += Math.floor(bounds.top / HAMIDASHI_HOSEI);
+                mMapY += FloatMath.floor(bounds.top / damp);
             }
             else {
-                mMapY += Math.ceil((bounds.bottom - mBitMap.getHeight())
-                        / HAMIDASHI_HOSEI);
+                mMapY += FloatMath.ceil((bounds.bottom - mBitMap.getHeight()) / damp);
             }
             modded = true;
         }
@@ -190,23 +181,41 @@ public class PinchableImageView extends View {
     boolean mIsPinching;
     boolean mTouchOperationFinished;
     boolean mOnTouching;
-    int mTouchMovedCount;
     float mZoom = 1;
     float mZoomCenterX;
     float mZoomCenterY;
     float mPinchStartDistance = 0;
     float mPinchStartZoom = 1;
 
-    long mLastClickTime;
-    long mTouchStartTime;
-    static final int CLICK_TLERANCE = 3;
-    static final int MAX_CLICK_TIME = 150;
+    class GestureListener extends GestureDetector.SimpleOnGestureListener {
 
-    /**
-     * {@inheritDoc} TODO: {@link GestureDetector}使う
-     */
+        @Override
+        public boolean onSingleTapUp(MotionEvent e) {
+            if (mTouchOperationFinished) return true;
+            performClick();
+            return false;
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            toggleZoomState(1);
+            return false;
+        }
+
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX,
+                float distanceY) {
+            if (mTouchOperationFinished) return true;
+            mMapX -= distanceX / mZoom;
+            mMapY -= distanceY / mZoom;
+            return false;
+        }
+
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        mGestureDetector.onTouchEvent(event);
         float x = event.getX();
         float y = event.getY();
         boolean willDraw = false;
@@ -221,9 +230,7 @@ public class PinchableImageView extends View {
             mTouchCurrY = y;
             mTouchOperationFinished = false;
             mIsPinching = false;
-            mTouchMovedCount = 0;
             mOnTouching = true;
-            mTouchStartTime = System.currentTimeMillis();
             break;
         case MotionEvent.ACTION_POINTER_DOWN:
             if (!mTouchOperationFinished && pointerIndex == 1) {
@@ -236,15 +243,12 @@ public class PinchableImageView extends View {
         case MotionEvent.ACTION_MOVE:
             if (!mTouchOperationFinished) {
                 if (!mIsPinching) {
-                    mMapX += (x - mTouchCurrX) / (mZoom);
-                    mMapY += (y - mTouchCurrY) / (mZoom);
                     mTouchCurrX = x;
                     mTouchCurrY = y;
                 }
                 else {
                     // assert both 0 and 1 are available for pointerIndex
-                    float dist = (float) Math.hypot(x - event.getX(1),
-                            y - event.getY(1));
+                    float dist = (float) Math.hypot(x - event.getX(1), y - event.getY(1));
                     mZoom = mPinchStartZoom
                             * (float) ((dist / mPinchStartDistance));
                     // zoomcenterは固定値に
@@ -254,55 +258,21 @@ public class PinchableImageView extends View {
                 }
                 willDraw = true;
             }
-            mTouchMovedCount++;
             break;
         case MotionEvent.ACTION_UP:
             mIsPinching = false;
             mOnTouching = false;
-            if (mTouchMovedCount < CLICK_TLERANCE
-                    && System.currentTimeMillis() - mTouchStartTime < MAX_CLICK_TIME) {
-                // クリックされた!!! (条件は変えるべき)
-                if (!onClick()) {
-                    performClick();
-                }
-            }
             willDraw = true;
             break;
         case MotionEvent.ACTION_POINTER_UP:
             if (pointerIndex == 0) mTouchOperationFinished = true;
             if (pointerIndex <= 1) mIsPinching = false;
-            mTouchMovedCount++;
             break;
         }
         if (willDraw) {
             invalidate();
         }
         return true;
-    }
-
-    static final int DBLCLICK_TIME = 400;
-    int mClickCount;
-
-    /**
-     * @return whether or not the click event is consumed
-     */
-    private boolean onClick() {
-        boolean ret = false;
-        long now = System.currentTimeMillis();
-        if (now < mLastClickTime + DBLCLICK_TIME) {
-            mClickCount++;
-            if (mClickCount == 2) {
-                // ダブルクリック!!!
-                // concatZoom(1.3f);
-                toggleZoomState(1);
-                ret = true;
-            }
-        }
-        else {
-            mClickCount = 1;
-        }
-        mLastClickTime = now;
-        return ret;
     }
 
     public ZoomState getZoomState() {
