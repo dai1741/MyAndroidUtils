@@ -6,7 +6,9 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.os.AsyncTask;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -262,9 +264,7 @@ public class PinchableImageView extends View {
             if (mTouchMovedCount < CLICK_TLERANCE
                     && System.currentTimeMillis() - mTouchStartTime < MAX_CLICK_TIME) {
                 // クリックされた!!! (条件は変えるべき)
-                if (!onClick()) {
-                    performClick();
-                }
+                mClickDetector.onClick();
             }
             willDraw = true;
             break;
@@ -280,29 +280,85 @@ public class PinchableImageView extends View {
         return true;
     }
 
-    static final int DBLCLICK_TIME = 400;
-    int mClickCount;
+    final ClickDetector mClickDetector = new ClickDetector();
 
-    /**
-     * @return whether or not the click event is consumed
-     */
-    private boolean onClick() {
-        boolean ret = false;
-        long now = System.currentTimeMillis();
-        if (now < mLastClickTime + DBLCLICK_TIME) {
-            mClickCount++;
-            if (mClickCount == 2) {
-                // ダブルクリック!!!
-                // concatZoom(1.3f);
-                toggleZoomState(1);
-                ret = true;
+    class ClickDetector {
+        static final int DBLCLICK_TIME = 400;
+        private volatile int mClickCount = 1;
+        private volatile AsyncTask<?, ?, ?> mClickLauncher;
+        private volatile boolean mIsPerforming;
+        private long mLastClickTime;
+
+        private void init(long last) {
+            mClickCount = 1;
+            mLastClickTime = last;
+            mClickLauncher = new ClickLauncher().execute();
+        }
+
+        /**
+         * この関数はUIスレッドから呼び出される
+         */
+        public synchronized void onClick() {
+            if (mIsPerforming) return;
+
+            long now = System.currentTimeMillis();
+            if (now < mLastClickTime + DBLCLICK_TIME) {
+                mClickCount++;
+                mLastClickTime = now;
+            }
+            else {
+                init(now);
             }
         }
-        else {
-            mClickCount = 1;
+
+        class ClickLauncher extends AsyncTask<Void, Void, Integer> {
+
+            @Override
+            protected Integer doInBackground(Void... params) {
+                int prev;
+                try {
+                    while (true) {
+                        prev = mClickCount;
+                        Thread.sleep(mLastClickTime + DBLCLICK_TIME
+                                - System.currentTimeMillis());
+                        synchronized (ClickDetector.this) {
+                            if (mClickCount == prev || mClickLauncher != this) {
+                                // mClickLauncher != this はこのsyncブロックに入る直前に
+                                // onClick()が呼ばれたときに起こりうる
+                                mIsPerforming = true;
+                                return prev;
+                            }
+                        }
+                    }
+                }
+                catch (InterruptedException e) {
+                }
+
+                cancel(false);
+                return 0;
+            }
+
+            @Override
+            protected void onPostExecute(Integer result) {
+                performClicks(result);
+                mIsPerforming = false;
+            }
         }
-        mLastClickTime = now;
-        return ret;
+
+        /**
+         * @param n クリック数。2ならダブルクリック
+         */
+        private void performClicks(int n) {
+            switch (n) {
+            case 1:
+                performClick();
+                break;
+            case 2:
+                // concatZoom(1.3f);
+                toggleZoomState(1);
+                break;
+            }
+        }
     }
 
     public ZoomState getZoomState() {
