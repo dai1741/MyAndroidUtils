@@ -103,13 +103,12 @@ public class PinchableImageView extends View {
     }
 
     private void makeImageInDisplay() {
-        RectF bounds = getBounds();
-        mMapX += bounds.left;
-        mMapY += bounds.top;
-
         if (mLazyShowngAroundRect != null) {
             showAround(mLazyShowngAroundRect);
             mLazyShowngAroundRect = null;
+        }
+        else {
+            fixOrverRun(1);
         }
 
     }
@@ -120,6 +119,10 @@ public class PinchableImageView extends View {
         mZoomCenterY = (float) getHeight() / 2;
 
         fitImageTo(mZoomState);
+
+        RectF bounds = getBounds();
+        mMapX += bounds.left;
+        mMapY += bounds.top;
 
         invalidate();
     }
@@ -136,7 +139,7 @@ public class PinchableImageView extends View {
         // }
 
         if (!mOnTouching) {
-            if (fixOrverRun()) {
+            if (fixOrverRun(HAMIDASHI_HOSEI)) {
                 invalidate();
             }
             int alpha = mPaint.getAlpha();
@@ -152,7 +155,7 @@ public class PinchableImageView extends View {
      * 
      * @return whether or not the clipped region is modified
      */
-    private boolean fixOrverRun() {
+    private boolean fixOrverRun(float damp) {
         boolean modded = false;
         RectF bounds = getBounds();
         float hosei = 1; // これがないと拡大率によってはプルプルするよ！
@@ -160,22 +163,22 @@ public class PinchableImageView extends View {
         if ((bounds.left < -hosei)
                 ^ (mBitMap.getWidth() < bounds.right - hosei)) {
             if (bounds.left < -hosei) {
-                mMapX += Math.floor(bounds.left / HAMIDASHI_HOSEI);
+                mMapX += Math.floor(bounds.left / damp);
             }
             else {
                 mMapX += Math.ceil((bounds.right - mBitMap.getWidth())
-                        / HAMIDASHI_HOSEI);
+                        / damp);
             }
             modded = true;
         }
         if ((bounds.top < -hosei)
                 ^ (mBitMap.getHeight() < bounds.bottom - hosei)) {
             if (bounds.top < -hosei) {
-                mMapY += Math.floor(bounds.top / HAMIDASHI_HOSEI);
+                mMapY += Math.floor(bounds.top / damp);
             }
             else {
                 mMapY += Math.ceil((bounds.bottom - mBitMap.getHeight())
-                        / HAMIDASHI_HOSEI);
+                        / damp);
             }
             modded = true;
         }
