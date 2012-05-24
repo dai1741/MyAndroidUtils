@@ -6,9 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
-import android.os.AsyncTask;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -33,6 +31,7 @@ public class PinchableImageView extends View {
     protected Paint mPaint = new Paint();
     protected int mAlphaChangeRate = 255;
     protected ZoomState mZoomState;
+    protected GestureDetector mGestureDetector;
 
     public PinchableImageView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
@@ -69,6 +68,7 @@ public class PinchableImageView extends View {
     private void init(Bitmap bitmap, ZoomState initZoom) {
 
         mZoomState = initZoom;
+        mGestureDetector = new GestureDetector(getContext(), new GestureListener());
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -192,23 +192,41 @@ public class PinchableImageView extends View {
     boolean mIsPinching;
     boolean mTouchOperationFinished;
     boolean mOnTouching;
-    int mTouchMovedCount;
     float mZoom = 1;
     float mZoomCenterX;
     float mZoomCenterY;
     float mPinchStartDistance = 0;
     float mPinchStartZoom = 1;
 
-    long mLastClickTime;
-    long mTouchStartTime;
-    static final int CLICK_TLERANCE = 3;
-    static final int MAX_CLICK_TIME = 150;
+    class GestureListener extends GestureDetector.SimpleOnGestureListener {
 
-    /**
-     * {@inheritDoc} TODO: {@link GestureDetector}使う
-     */
+        @Override
+        public boolean onSingleTapUp(MotionEvent e) {
+            if (mTouchOperationFinished) return true;
+            performClick();
+            return false;
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            toggleZoomState(1);
+            return false;
+        }
+
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX,
+                float distanceY) {
+            if (mTouchOperationFinished) return true;
+            mMapX -= distanceX / mZoom;
+            mMapY -= distanceY / mZoom;
+            return false;
+        }
+
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        mGestureDetector.onTouchEvent(event);
         float x = event.getX();
         float y = event.getY();
         boolean willDraw = false;
@@ -223,9 +241,7 @@ public class PinchableImageView extends View {
             mTouchCurrY = y;
             mTouchOperationFinished = false;
             mIsPinching = false;
-            mTouchMovedCount = 0;
             mOnTouching = true;
-            mTouchStartTime = System.currentTimeMillis();
             break;
         case MotionEvent.ACTION_POINTER_DOWN:
             if (!mTouchOperationFinished && pointerIndex == 1) {
@@ -238,8 +254,6 @@ public class PinchableImageView extends View {
         case MotionEvent.ACTION_MOVE:
             if (!mTouchOperationFinished) {
                 if (!mIsPinching) {
-                    mMapX += (x - mTouchCurrX) / (mZoom);
-                    mMapY += (y - mTouchCurrY) / (mZoom);
                     mTouchCurrX = x;
                     mTouchCurrY = y;
                 }
@@ -256,109 +270,21 @@ public class PinchableImageView extends View {
                 }
                 willDraw = true;
             }
-            mTouchMovedCount++;
             break;
         case MotionEvent.ACTION_UP:
             mIsPinching = false;
             mOnTouching = false;
-            if (mTouchMovedCount < CLICK_TLERANCE
-                    && System.currentTimeMillis() - mTouchStartTime < MAX_CLICK_TIME) {
-                // クリックされた!!! (条件は変えるべき)
-                mClickDetector.onClick();
-            }
             willDraw = true;
             break;
         case MotionEvent.ACTION_POINTER_UP:
             if (pointerIndex == 0) mTouchOperationFinished = true;
             if (pointerIndex <= 1) mIsPinching = false;
-            mTouchMovedCount++;
             break;
         }
         if (willDraw) {
             invalidate();
         }
         return true;
-    }
-
-    final ClickDetector mClickDetector = new ClickDetector();
-
-    class ClickDetector {
-        static final int DBLCLICK_TIME = 400;
-        private volatile int mClickCount = 1;
-        private volatile AsyncTask<?, ?, ?> mClickLauncher;
-        private volatile boolean mIsPerforming;
-        private long mLastClickTime;
-
-        private void init(long last) {
-            mClickCount = 1;
-            mLastClickTime = last;
-            mClickLauncher = new ClickLauncher().execute();
-        }
-
-        /**
-         * この関数はUIスレッドから呼び出される
-         */
-        public synchronized void onClick() {
-            if (mIsPerforming) return;
-
-            long now = System.currentTimeMillis();
-            if (now < mLastClickTime + DBLCLICK_TIME) {
-                mClickCount++;
-                mLastClickTime = now;
-            }
-            else {
-                init(now);
-            }
-        }
-
-        class ClickLauncher extends AsyncTask<Void, Void, Integer> {
-
-            @Override
-            protected Integer doInBackground(Void... params) {
-                int prev;
-                try {
-                    while (true) {
-                        prev = mClickCount;
-                        Thread.sleep(mLastClickTime + DBLCLICK_TIME
-                                - System.currentTimeMillis());
-                        synchronized (ClickDetector.this) {
-                            if (mClickCount == prev || mClickLauncher != this) {
-                                // mClickLauncher != this はこのsyncブロックに入る直前に
-                                // onClick()が呼ばれたときに起こりうる
-                                mIsPerforming = true;
-                                return prev;
-                            }
-                        }
-                    }
-                }
-                catch (InterruptedException e) {
-                }
-
-                cancel(false);
-                return 0;
-            }
-
-            @Override
-            protected void onPostExecute(Integer result) {
-                performClicks(result);
-                mIsPerforming = false;
-            }
-        }
-
-        /**
-         * @param n クリック数。2ならダブルクリック
-         */
-        private void performClicks(int n) {
-            switch (n) {
-            case 1:
-                performClick();
-                break;
-            case 2:
-                // concatZoom(1.3f);
-                toggleZoomState(1);
-                break;
-            }
-        }
     }
 
     public ZoomState getZoomState() {
