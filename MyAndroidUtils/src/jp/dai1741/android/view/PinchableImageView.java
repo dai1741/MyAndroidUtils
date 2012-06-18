@@ -94,11 +94,14 @@ public class PinchableImageView extends View {
         mZoomCenterX = (float) getWidth() / 2;
         mZoomCenterY = (float) getHeight() / 2;
 
+        boolean needsTopLeft = mLazyShowngAroundRect == null;
         fitImageTo(mZoomState);
 
-        RectF bounds = getBounds();
-        mMapX += bounds.left;
-        mMapY += bounds.top;
+        if (needsTopLeft) {
+            RectF bounds = getBounds();
+            mMapX += bounds.left;
+            mMapY += bounds.top;
+        }
 
         invalidate();
     }
